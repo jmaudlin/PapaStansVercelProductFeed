@@ -1,0 +1,9 @@
+{
+  "name": "papastans-feeds",
+  "version": "1.0.0",
+  "description": "Google Merchant Center feeds for Papa Stan's of Iowa",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "functions": {
+    "api/product-feed.js": {
+      "maxDuration": 30
+    },
+    "api/local-inventory-feed.js": {
+      "maxDuration": 30
+    }
+  }
+}
