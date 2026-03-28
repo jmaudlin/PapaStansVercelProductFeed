@@ -32,107 +32,56 @@ function getCategory(type, title) {
 }
 
 function getVariantImage(product, variant) {
-  if (variant.image_src) return variant.image_src;
+  if (variant.image_id) {
+    const img = product.images.find(i => i.id === variant.image_id);
+    if (img) return img.src;
+  }
   return product.images.length > 0 ? product.images[0].src : '';
 }
 
 async function fetchAllProducts() {
-  const token = process.env.SHOPIFY_ADMIN_TOKEN;
-  const shop   = process.env.SHOPIFY_SHOP_DOMAIN || 'papastans.myshopify.com';
-  const endpoint = `https://${shop}/admin/api/2024-01/graphql.json`;
-
-  // Metafield namespaces to pull for Google Shopping
-  const GOOGLE_KEYS = ['gender', 'age_group', 'color', 'size_type', 'size_system', 'material', 'pattern', 'multipack', 'is_bundle', 'adwords_grouping', 'adwords_labels'];
-
-  const metafieldQuery = GOOGLE_KEYS.map(k =>
-    `${k.replace(/-/g,'_')}: metafield(namespace: "google", key: "${k}") { value }`
-  ).join('\n      ');
-
+  // Fetch products from public endpoint
   let products = [];
-  let cursor   = null;
-  let hasNext  = true;
-
-  while (hasNext) {
-    const afterClause = cursor ? `, after: "${cursor}"` : '';
-    const query = `{
-      products(first: 50${afterClause}) {
-        pageInfo { hasNextPage endCursor }
-        edges {
-          node {
-            id legacyResourceId handle title descriptionHtml productType
-            onlineStoreUrl
-            images(first: 10) { edges { node { src altText } } }
-            options { name values }
-            ${metafieldQuery}
-            variants(first: 100) {
-              edges {
-                node {
-                  id legacyResourceId title sku price compareAtPrice
-                  availableForSale weight weightUnit
-                  image { src altText }
-                  selectedOptions { name value }
-                }
-              }
-            }
-          }
-        }
-      }
-    }`;
-
-    const res  = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': token
-      },
-      body: JSON.stringify({ query })
-    });
-    const json = await res.json();
-    const conn = json?.data?.products;
-    if (!conn) { console.error('GraphQL error:', JSON.stringify(json)); break; }
-
-    for (const edge of conn.edges) {
-      const n = edge.node;
-      // Normalise to shape similar to REST so the rest of the code changes minimally
-      const metafields = {};
-      for (const k of GOOGLE_KEYS) {
-        const safe = k.replace(/-/g,'_');
-        if (n[safe]?.value) metafields[k] = n[safe].value;
-      }
-      products.push({
-        id:           parseInt(n.legacyResourceId),
-        handle:       n.handle,
-        title:        n.title,
-        body_html:    n.descriptionHtml,
-        product_type: n.productType,
-        options:      n.options.map(o => ({ name: o.name })),
-        images:       n.images.edges.map(e => ({ src: e.node.src })),
-        metafields,
-        variants: n.variants.edges.map(e => {
-          const v = e.node;
-          const opts = {};
-          v.selectedOptions.forEach((o, i) => { opts[`option${i+1}`] = o.value; });
-          return {
-            id:               parseInt(v.legacyResourceId),
-            title:            v.title,
-            sku:              v.sku,
-            price:            v.price,
-            compare_at_price: v.compareAtPrice,
-            available:        v.availableForSale,
-            weight:           v.weight,
-            weight_unit:      v.weightUnit,
-            image_src:        v.image?.src || null,
-            ...opts
-          };
-        })
-      });
-    }
-
-    hasNext = conn.pageInfo.hasNextPage;
-    cursor  = conn.pageInfo.endCursor;
+  let page = 1;
+  while (true) {
+    const res  = await fetch(`${SHOP_URL}/products.json?limit=250&page=${page}`);
+    const data = await res.json();
+    if (!data.products || data.products.length === 0) break;
+    products = products.concat(data.products);
+    if (data.products.length < 250) break;
+    page++;
   }
+
+  // Fetch Google metafields from public Shopify theme endpoint
+  let metafieldMap = {};
+  try {
+    const mfRes  = await fetch(`${SHOP_URL}/pages/google-metafields`);
+    const mfText = await mfRes.text();
+    // Strip any HTML wrapper Shopify might add
+    const jsonStart = mfText.indexOf('[');
+    const jsonEnd   = mfText.lastIndexOf(']') + 1;
+    if (jsonStart !== -1) {
+      const mfData = JSON.parse(mfText.slice(jsonStart, jsonEnd));
+      for (const row of mfData) {
+        metafieldMap[row.id] = row;
+      }
+    }
+  } catch (e) {
+    console.warn('Could not load metafields endpoint:', e.message);
+  }
+
+  // Merge metafields onto each product
+  for (const p of products) {
+    const mf = metafieldMap[p.id] || {};
+    p.metafields = {};
+    for (const k of ['gender','age_group','color','material','pattern','size_type','multipack','is_bundle']) {
+      if (mf[k] && mf[k] !== 'null') p.metafields[k] = mf[k];
+    }
+  }
+
   return products;
 }
+
 
 export default async function handler(req, res) {
   try {
