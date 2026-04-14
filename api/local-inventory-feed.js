@@ -20,21 +20,6 @@ async function fetchAllProducts() {
   return products;
 }
 
-// Variant IDs not in Google's local product catalog — exclude from feed
-const EXCLUDED_VARIANT_IDS = new Set([
-  '51507180765400',
-  '51507158810840',
-  '51507181224152',
-  '51507165888728',
-  '51507181289688',
-  '51507180929240',
-  '51507160318168',
-  '51507180830936',
-  '51507181158616',
-  '51507180470488',
-  '51507180536024',
-]);
-
 export default async function handler(req, res) {
   try {
     const products = await fetchAllProducts();
@@ -48,7 +33,6 @@ export default async function handler(req, res) {
 
     for (const product of products) {
       for (const variant of product.variants) {
-        if (EXCLUDED_VARIANT_IDS.has(String(variant.id))) continue;
         const price        = fmtPrice(variant.price);
         const comparePrice = variant.compare_at_price && parseFloat(variant.compare_at_price) > parseFloat(variant.price)
           ? fmtPrice(variant.compare_at_price) : null;
