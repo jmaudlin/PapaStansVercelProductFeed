@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Google Merchant Center feeds for Papa Stan's of Iowa",
   "private": true,
+  "type": "module",
   "engines": {
     "node": ">=18"
   }
