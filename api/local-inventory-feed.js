@@ -1,7 +1,5 @@
-const STORE_CODE   = '13785207061556410544';
-const SHOP_DOMAIN  = process.env.SHOPIFY_SHOP_DOMAIN || 'papastans.myshopify.com';
-const ADMIN_TOKEN  = process.env.SHOPIFY_ADMIN_TOKEN;
-const API_VERSION  = '2024-10';
+const SHOP_URL   = 'https://papastans.store';
+const STORE_CODE = '13785207061556410544';
 
 function fmtPrice(val) {
   if (!val) return '0.00';
@@ -9,31 +7,16 @@ function fmtPrice(val) {
 }
 
 async function fetchAllProducts() {
-  if (!ADMIN_TOKEN) throw new Error('SHOPIFY_ADMIN_TOKEN env var is not set');
-
   let products = [];
-  let url = `https://${SHOP_DOMAIN}/admin/api/${API_VERSION}/products.json?limit=250&fields=id,variants,status`;
-
-  while (url) {
-    const res = await fetch(url, {
-      headers: {
-        'X-Shopify-Access-Token': ADMIN_TOKEN,
-        'Content-Type': 'application/json',
-      }
-    });
-
-    if (!res.ok) throw new Error(`Admin API error: ${res.status} ${res.statusText}`);
-
+  let page = 1;
+  while (true) {
+    const res  = await fetch(`${SHOP_URL}/products.json?limit=250&page=${page}`);
     const data = await res.json();
-    const active = (data.products || []).filter(p => p.status === 'active');
-    products = products.concat(active);
-
-    // Pagination via Link header
-    const linkHeader = res.headers.get('link') || '';
-    const nextMatch = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
-    url = nextMatch ? nextMatch[1] : null;
+    if (!data.products || data.products.length === 0) break;
+    products = products.concat(data.products);
+    if (data.products.length < 250) break;
+    page++;
   }
-
   return products;
 }
 
@@ -45,7 +28,7 @@ export default async function handler(req, res) {
     xml += `<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">\n`;
     xml += `  <channel>\n`;
     xml += `    <title>Papa Stan's of Iowa — Local Inventory</title>\n`;
-    xml += `    <link>https://papastans.store</link>\n`;
+    xml += `    <link>${SHOP_URL}</link>\n`;
     xml += `    <description>Local inventory feed for Papa Stan's of Iowa, Oskaloosa, Iowa</description>\n`;
 
     for (const product of products) {
@@ -54,10 +37,10 @@ export default async function handler(req, res) {
         const comparePrice = variant.compare_at_price && parseFloat(variant.compare_at_price) > parseFloat(variant.price)
           ? fmtPrice(variant.compare_at_price) : null;
 
-        // Use real inventory_quantity from Admin API
-        const qty          = variant.inventory_quantity ?? 0;
-        const available    = qty > 0 ? 'in_stock' : 'out_of_stock';
-        const quantity     = Math.max(0, qty);
+        // Storefront API doesn't return inventory_quantity reliably.
+        // Use variant.available (boolean) as the source of truth.
+        const available = variant.available ? 'in_stock' : 'out_of_stock';
+        const quantity  = variant.available ? 1 : 0;
 
         xml += `    <item>\n`;
         xml += `      <g:id>shopify_ZZ_${product.id}_${variant.id}</g:id>\n`;
