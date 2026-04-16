@@ -32,6 +32,9 @@ export default async function handler(req, res) {
     xml += `    <description>Local inventory feed for Papa Stan's of Iowa, Oskaloosa, Iowa</description>\n`;
 
     for (const product of products) {
+      // Google does not accept gift cards in product feeds
+      if ((product.title || '').toLowerCase().includes('gift card')) continue;
+
       for (const variant of product.variants) {
         const price        = fmtPrice(variant.price);
         const comparePrice = variant.compare_at_price && parseFloat(variant.compare_at_price) > parseFloat(variant.price)
