@@ -43,7 +43,7 @@ export default async function handler(req, res) {
         const quantity  = variant.available ? 1 : 0;
 
         xml += `    <item>\n`;
-        xml += `      <g:id>shopify_ZZ_${product.id}_${variant.id}</g:id>\n`;
+        xml += `      <g:id>${variant.id}</g:id>\n`;
         xml += `      <g:store_code>${STORE_CODE}</g:store_code>\n`;
         xml += `      <g:availability>${available}</g:availability>\n`;
         xml += `      <g:quantity>${quantity}</g:quantity>\n`;
