@@ -113,7 +113,7 @@ export default async function handler(req, res) {
         const shippingPrice = parseFloat(variant.price) >= 55 ? '0.00' : '5.99';
 
         xml += `    <item>\n`;
-        xml += `      <g:id>${variant.id}</g:id>\n`;
+        xml += `      <g:id>shopify_ZZ_${product.id}_${variant.id}</g:id>\n`;
         xml += `      <g:item_group_id>${product.id}</g:item_group_id>\n`;
         xml += `      <g:title>${title}</g:title>\n`;
         xml += `      <g:description>${descFinal}</g:description>\n`;
